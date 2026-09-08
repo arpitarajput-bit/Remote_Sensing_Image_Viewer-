@@ -151,18 +151,19 @@ function App() {
 
   // Sync active dataset when container dataset list updates or active container changes
   useEffect(() => {
+    const readyDatasets = containerDatasets.filter(d => !d.isUploading && !d.id?.startsWith('temp-'));
     if (activeContainer && activeContainer.history && activeContainer.history.activeId) {
-      const found = containerDatasets.find(d => d.id === activeContainer.history.activeId);
+      const found = readyDatasets.find(d => d.id === activeContainer.history.activeId);
       if (found && active?.id !== found.id) {
         setActive(found);
         return;
       }
     }
-    if (containerDatasets.length > 0) {
-      if (!active || !containerDatasets.some(d => d.id === active.id)) {
-        setActive(containerDatasets[0]);
+    if (readyDatasets.length > 0) {
+      if (!active || active.isUploading || active.id?.startsWith('temp-') || !readyDatasets.some(d => d.id === active.id)) {
+        setActive(readyDatasets[0]);
       }
-    } else {
+    } else if (active && (active.isUploading || active.id?.startsWith('temp-'))) {
       setActive(null);
     }
   }, [activeContainerId, datasets]);
@@ -293,13 +294,15 @@ function App() {
 
   // OpenSeadragon initialization & view state restoration
   useEffect(() => {
-    if (!viewerRef.current || !active) return;
-    if (osdRef.current) {
-      try { osdRef.current.destroy(); } catch (e) {}
-      osdRef.current = null;
-    }
-    if (viewerRef.current) {
-      viewerRef.current.innerHTML = '';
+    if (!viewerRef.current || !active || active.isUploading || active.id?.startsWith('temp-')) {
+      if (osdRef.current) {
+        try { osdRef.current.destroy(); } catch (e) {}
+        osdRef.current = null;
+      }
+      if (viewerRef.current) {
+        viewerRef.current.innerHTML = '';
+      }
+      return;
     }
     const max = active.max_zoom_level || 10;
     const tileUrl = (level, x, y) => `/api/tile/${active.id}/${level}/${x}/${y}.png?bands=${bands.join(',')}`;
