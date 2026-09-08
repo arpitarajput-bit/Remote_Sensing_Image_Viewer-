@@ -192,6 +192,9 @@ def parse_bands(args, default=None):
 @app.get('/api/health')
 def health(): return jsonify({'ok': True})
 
+CHUNKS_DIR = BASE / 'chunks'
+CHUNKS_DIR.mkdir(exist_ok=True)
+
 @app.post('/api/upload')
 def upload():
     f = request.files.get('file')
@@ -207,6 +210,56 @@ def upload():
     meta['id'] = dataset_id; meta['path'] = str(path)
     with LOCK: DATASETS[dataset_id] = meta
     return jsonify({k:v for k,v in meta.items() if k != 'path'})
+
+@app.post('/api/upload/chunk')
+def upload_chunk():
+    upload_id = request.form.get('upload_id')
+    chunk_index = int(request.form.get('chunk_index', 0))
+    total_chunks = int(request.form.get('total_chunks', 1))
+    filename = request.form.get('filename', '')
+    f = request.files.get('file')
+    
+    if not upload_id or not f or not filename:
+        return jsonify({'error': 'Invalid chunk data'}), 400
+    if not filename.lower().endswith(('.tif', '.tiff')):
+        return jsonify({'error': 'Only GeoTIFF files are supported'}), 400
+
+    chunk_dir = CHUNKS_DIR / upload_id
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    chunk_path = chunk_dir / f'{chunk_index}.part'
+    f.save(chunk_path)
+
+    uploaded_chunks = len(list(chunk_dir.glob('*.part')))
+    if uploaded_chunks == total_chunks:
+        dataset_id = uuid.uuid4().hex[:12]
+        safe = ''.join(c if c.isalnum() or c in '._-' else '_' for c in filename)
+        final_path = UPLOADS / f'{dataset_id}_{safe}'
+        
+        with open(final_path, 'wb') as outfile:
+            for i in range(total_chunks):
+                cp = chunk_dir / f'{i}.part'
+                if cp.exists():
+                    with open(cp, 'rb') as infile:
+                        outfile.write(infile.read())
+                    cp.unlink(missing_ok=True)
+        
+        try: chunk_dir.rmdir()
+        except Exception: pass
+        
+        try:
+            meta = scan_dataset(final_path)
+        except Exception as e:
+            final_path.unlink(missing_ok=True)
+            return jsonify({'error': f'Invalid GeoTIFF: {e}'}), 400
+            
+        meta['id'] = dataset_id
+        meta['path'] = str(final_path)
+        with LOCK:
+            DATASETS[dataset_id] = meta
+            
+        return jsonify({k: v for k, v in meta.items() if k != 'path'})
+        
+    return jsonify({'status': 'chunk_received', 'chunk_index': chunk_index, 'total_chunks': total_chunks})
 
 @app.get('/api/datasets')
 def datasets():

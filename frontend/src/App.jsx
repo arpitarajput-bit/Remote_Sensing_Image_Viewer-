@@ -700,7 +700,9 @@ function App() {
 
     // 2. Perform background upload without blocking UI or auto-opening viewer
     try {
-      const r = await uploadRaster(fileToUpload);
+      const r = await uploadRaster(fileToUpload, (pct) => {
+        setStatus(`Importing ${fileToUpload.name} (${pct}%)…`);
+      });
       const newDataset = r.data;
 
       setDatasets(prev => (Array.isArray(prev) ? prev : []).map(d => d.id === tempId ? newDataset : d));
