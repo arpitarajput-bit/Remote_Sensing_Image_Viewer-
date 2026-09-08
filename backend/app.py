@@ -148,11 +148,17 @@ def tile_image(path, meta, level, x, y, bands, stretch=True):
         maxlevel = int(math.ceil(math.log2(maxdim)))
         if level < 0: abort(404)
         effective_level = min(level, maxlevel)
-        scale = 2 ** (maxlevel - effective_level)
-        full_w = math.ceil(ds.width / scale); full_h = math.ceil(ds.height / scale)
-        left = x * TILE; top = y * TILE
-        if left >= full_w or top >= full_h: abort(404)
-        w = min(TILE, full_w - left); h = min(TILE, full_h - top)
+        scale = 2.0 ** (maxlevel - effective_level)
+        
+        img_w = max(1, math.ceil(ds.width / scale))
+        img_h = max(1, math.ceil(ds.height / scale))
+        
+        left = x * TILE
+        top = y * TILE
+        if left >= img_w or top >= img_h: abort(404)
+        
+        w = min(TILE, img_w - left)
+        h = min(TILE, img_h - top)
         if w <= 0 or h <= 0: abort(404)
         
         win_x = left * scale
