@@ -993,7 +993,9 @@ function App() {
         </Panel>
 
         <Panel title="RGB Composite" icon={<ImageIcon />}>
-          <img className="rgbPreview" src={active ? `/api/preview/${active.id}.png?bands=${bands.join(',')}` : ''} onError={e => e.currentTarget.style.display = 'none'} />
+          {active && !active.isUploading && !active.id?.startsWith('temp-') && (
+            <img className="rgbPreview" src={`/api/preview/${active.id}.png?bands=${bands.join(',')}`} onError={e => e.currentTarget.style.display = 'none'} />
+          )}
           <div className="rgbLegend">R Band {bands[0] || 1}<br />G Band {bands[1] || 1}<br />B Band {bands[2] || 1}</div>
         </Panel>
       </section>
