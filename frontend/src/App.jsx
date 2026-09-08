@@ -556,7 +556,7 @@ function App() {
 
   const loadHist = async () => {
     if (!chartRefs.current.hist) return;
-    if (!active) {
+    if (!active || active.isUploading || active.id?.startsWith('temp-')) {
       try { Plotly.purge(chartRefs.current.hist); } catch (e) {}
       return;
     }
@@ -580,7 +580,7 @@ function App() {
 
   const loadScatter = async () => {
     if (!chartRefs.current.scatter) return;
-    if (!active) {
+    if (!active || active.isUploading || active.id?.startsWith('temp-')) {
       try { Plotly.purge(chartRefs.current.scatter); } catch (e) {}
       return;
     }
@@ -603,7 +603,7 @@ function App() {
 
   // Clamp bands when active dataset changes
   useEffect(() => {
-    if (active) {
+    if (active && !active.isUploading && !active.id?.startsWith('temp-')) {
       if (histBand > active.bands) setHistBand(1);
       if (scatterBands[0] > active.bands || scatterBands[1] > active.bands) {
         setScatterBands([1, Math.min(2, active.bands)]);
@@ -617,7 +617,7 @@ function App() {
 
   // Update charts dynamically when active dataset, band selections, or profile points change
   useEffect(() => {
-    if (!active) {
+    if (!active || active.isUploading || active.id?.startsWith('temp-')) {
       if (chartRefs.current.hist) try { Plotly.purge(chartRefs.current.hist); } catch (e) {}
       if (chartRefs.current.scatter) try { Plotly.purge(chartRefs.current.scatter); } catch (e) {}
       if (chartRefs.current.profile) try { Plotly.purge(chartRefs.current.profile); } catch (e) {}
@@ -716,7 +716,11 @@ function App() {
 
       setStatus(`Imported ${newDataset.name}. Click item to open.`);
     } catch (err) {
-      setStatus(err.response?.data?.error || 'Import failed');
+      const is413 = err.response?.status === 413;
+      const errMsg = is413
+        ? 'Import failed: File is too large for web upload proxy (413 Payload Too Large). Please upload a smaller GeoTIFF sample (<30MB).'
+        : (err.response?.data?.error || 'Import failed');
+      setStatus(errMsg);
       setDatasets(prev => (Array.isArray(prev) ? prev : []).filter(d => d.id !== tempId));
       setContainers(prev => (Array.isArray(prev) ? prev : []).map(c => ({
         ...c,
